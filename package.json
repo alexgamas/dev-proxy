@@ -1,0 +1,22 @@
+{
+    "name": "proxy_dev",
+    "version": "1.0.0",
+    "main": "dist/app.js",
+    "license": "MIT",
+    "scripts": {
+        "start": "tsc && node dist/app.js",
+        "build": "tsc",
+        "dev": "ts-node-dev --inspect --transpile-only --ignore-watch node_modules src/app.ts"
+    },
+    "dependencies": {
+        "http-proxy": "^1.18.1",
+        "install": "^0.13.0",
+        "uuid": "^8.3.2"
+    },
+    "devDependencies": {
+        "@types/http-proxy": "^1.17.7",
+        "@types/uuid": "^8.3.3",
+        "ts-node-dev": "^1.1.8",
+        "typescript": "^4.5.2"
+    }
+}

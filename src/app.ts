@@ -1,17 +1,10 @@
-# Dev Proxy
+import { Route, Target } from "./models";
+import { runProxy } from "./proxy";
+import { createServer } from "./server";
+import { createHostHeaderTo, createRequestIdHeader } from "./transformers";
 
+const PROXY_PORT = 8082;
 
-| Property      | Type |
-|---            |---|
-| label         | string
-| route         | string, RegExp
-| serverOptions | Linked to [node-http-proxy](https://github.com/http-party/node-http-proxy) server options ([ts](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/9e2e5af93f9cc2cf434a96e3249a573100e87351/types/http-proxy/index.d.ts#L137), [js](https://github.com/http-party/node-http-proxy/blob/9b96cd725127a024dabebec6c7ea8c807272223d/lib/http-proxy.js#L21))
-| transformers  | export type Transformer = (req: IncomingMessage, res: ServerResponse, options?: ServerOptions) => Promise<boolean>;
-| priority      | number
-
-### Define a target list
-
-```js
 const TARGETS: Target[] = [
     {
         label: "Authentication",
@@ -43,11 +36,8 @@ const TARGETS: Target[] = [
         transformers: [createRequestIdHeader],
     },
 ];
-```
-#### Run
 
-```shell
-$ yarn install
-$ yarn dev
-```
+runProxy(PROXY_PORT, TARGETS);
 
+// createServer(9999).on("POST", "").handle(() => {});
+// createServer(9008);
