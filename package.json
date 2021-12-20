@@ -11,7 +11,8 @@
     "dependencies": {
         "http-proxy": "^1.18.1",
         "install": "^0.13.0",
-        "uuid": "^8.3.2"
+        "uuid": "^8.3.2",
+        "winston": "^3.3.3"
     },
     "devDependencies": {
         "@types/http-proxy": "^1.17.7",

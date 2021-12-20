@@ -1,7 +1,9 @@
 import httpProxy, { ProxyTargetUrl, ServerOptions } from "http-proxy";
 import http, {IncomingMessage, ServerResponse} from "http";
+import * as net from "net";
 import { Target } from "./models";
 import { Transformer } from "./models";
+import { logger } from './logger';
 
 let scores: { [name: string]: number } = {};
 
@@ -20,20 +22,27 @@ const checkTime = (req: IncomingMessage) => {
     }
 }
 
-const errorHandler = (err: Error, req: IncomingMessage, res: ServerResponse, target?: ProxyTargetUrl) => {
-    console.log(`<<< ERROR: [${req.method}] ${req.url} - ${err.message}`);
+const errorHandler = (
+    err: Error,
+    req: IncomingMessage,
+    res: ServerResponse | net.Socket,
+    target?: ProxyTargetUrl,
+) => {
+    logger.error(`<<< ERROR: [${req.method}] ${req.url} - ${err.message} -- ${checkTime(req)} ms`);
     // 502 - Bad Gateway
-    res.writeHead(502, { "Content-Type": "application/json" });
-    res.write(
-        JSON.stringify({
-            message: err.message,
-            stack: err.stack,
-            error: err,
-            target: target,
-            method: req.method,
-            url: req.url,
-        })
-    );
+    if (res instanceof ServerResponse) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.write(
+            JSON.stringify({
+                message: err.message,
+                stack: err.stack,
+                error: err,
+                target: target,
+                method: req.method,
+                url: req.url,
+            })
+        );
+    }
     res.end();
 };
 
@@ -44,11 +53,11 @@ const handleReq = (
     options: ServerOptions
 ) => {
     checkTime(req);
-    console.log(`>>> [${req.method}] ${req.url}`);
+    logger.info(`>>> [${req.method}] ${req.url}`);
 };
 
 const handleRes = (pRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) => {
-    console.log(`<<< [${req.method}] ${req.url} - ${pRes.statusCode} ${pRes.statusMessage} -- ${checkTime(req)} ms`);
+    logger.info(`<<< [${req.method}] ${req.url} - ${pRes.statusCode} ${pRes.statusMessage} -- ${checkTime(req)} ms`);
 };
 
 const applyTransformers = (req: IncomingMessage, res: ServerResponse, options?: ServerOptions, transformers?: Transformer[]): Promise<boolean> => {
@@ -103,28 +112,30 @@ export const runProxy = (port: number, targets: Target[]) => {
         if (!config) {
             res.writeHead(502, { "Content-Type": "application/json" });
 
-            let response = JSON.stringify({
+            let response = {
                 code: 502,
                 url: url,
                 message: `No rule found for url ${url}`,
-            });
+            };
 
-            res.write(response);
+            res.write(JSON.stringify(response));
             res.end();
 
-            console.log(`Config not found: ${response}`);
+            logger.info({ resource: 'proxy.config', status: 'notfound', response: response });
 
             return;
         }
 
-        console.log(`Config found: ${config.label}`);
+        logger.info({ resource: 'proxy.config', status: 'found', name: config.label });
 
         let options = config.serverOptions;
 
         if (options.target instanceof Function) {
             const matcher = config.route instanceof RegExp ? config.route.exec(url) : null;
-
-            console.log(`Target is a function, executing with values [ route: "${config.route}", url: "${url}", matcher: "${matcher}" ]`);
+            
+            logger.info({
+                resource: 'proxy.target', type: 'function', status: 'executing', 
+                parameters: { matcher: matcher ,route: config.route, url: url }});
 
             const target = options.target(config.route, url, matcher);
             options = { ...options, target };
@@ -133,9 +144,9 @@ export const runProxy = (port: number, targets: Target[]) => {
         applyTransformers(req, res, options, config.transformers).then((resp) => {
             proxy.web(req, res, { ...DEFAULT_OPTIONS, ...options }, errorHandler);
         }).catch((err) => {
-            console.log(err);
+            logger.error(err);
         });
     }).listen(port);
 
-    console.log(`Uepa!! Proxy listening on port ${port}`);
+    logger.info({ resource: 'proxy', status: 'listening', port: port });
 };

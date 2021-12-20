@@ -2,6 +2,7 @@ import { Route, Target } from "./models";
 import { runProxy } from "./proxy";
 import { createServer } from "./server";
 import { createHostHeaderTo, createRequestIdHeader } from "./transformers";
+import { logger } from './logger';
 
 const PROXY_PORT = 8082;
 
