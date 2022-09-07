@@ -8,7 +8,8 @@ export type Route = string | RegExp
 export interface Target {
     label: string
     route: Route
-    serverOptions?: any
+    serverOptions?: ServerOptions,
     transformers?: Transformer[]
+    replaceHostHeader?: boolean,
     priority: number
 }

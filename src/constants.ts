@@ -1,0 +1,1 @@
+export const PROXY_REQUEST_ID_HEADER = 'x-proxy-request-id';

@@ -9,9 +9,15 @@
 | transformers  | export type Transformer = (req: IncomingMessage, res: ServerResponse, options?: ServerOptions) => Promise<boolean>;
 | priority      | number
 
+### Installing lib
+```js
+import * from '@gamas@dev-proxy';
+```
+
 ### Define a target list
 
 ```js
+
 const TARGETS: Target[] = [
     {
         label: "Authentication",
