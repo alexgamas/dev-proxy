@@ -1,33 +1,22 @@
 import { ServerOptions } from "http-proxy";
 import { IncomingMessage, ServerResponse } from "http";
-import { v4 as uuidv4 } from 'uuid';
+import { replaceHeader, uuid } from "./utils";
+import { HOST_HEADER_NAME, REQUEST_ID_HEADER } from "./constants";
 
-export const createHostHeaderTo = (host: string) =>
-    (
-        req: IncomingMessage,
-        res: ServerResponse,
-        options?: ServerOptions
-    ): Promise<boolean> =>
+export const createHostTransformerTo =
+    (host: string) =>
+    (req: IncomingMessage, res: ServerResponse, options?: ServerOptions): Promise<boolean> =>
         new Promise((resolve, reject) => {
-            req.headers["host"] = host;
+            replaceHeader(req, HOST_HEADER_NAME, host);
             resolve(true);
         });
 
-export const bindAuthorizationHeader = (
+export const requestIdTransformer = (
     req: IncomingMessage,
     res: ServerResponse,
     options?: ServerOptions
 ): Promise<boolean> =>
     new Promise((resolve, reject) => {
-        resolve(true);
-    });
-
-export const createRequestIdHeader = (
-    req: IncomingMessage,
-    res: ServerResponse,
-    options?: ServerOptions
-): Promise<boolean> =>
-    new Promise((resolve, reject) => {
-        req.headers["x-request-id"] = uuidv4();
+        replaceHeader(req, REQUEST_ID_HEADER, uuid());
         resolve(true);
     });

@@ -1,12 +1,18 @@
 {
-    "name": "proxy_dev",
-    "version": "1.0.0",
-    "main": "dist/app.js",
+    "name": "@gamas/dev-proxy",
+    "version": "0.0.3",
+    "main": "lib/index.js",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/alexgamas/dev-proxy.git"
+    },
+    "files": [
+        "lib"
+    ],
     "scripts": {
-        "start": "tsc && node dist/app.js",
         "build": "tsc",
-        "dev": "ts-node-dev --inspect --transpile-only --ignore-watch node_modules src/app.ts"
+        "dev": "ts-node-dev --inspect --transpile-only --ignore-watch node_modules src/test/app.ts"
     },
     "dependencies": {
         "http-proxy": "^1.18.1",
