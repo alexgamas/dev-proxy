@@ -18,7 +18,7 @@ import * from '@gamas@dev-proxy';
 
 ```js
 
-const TARGETS: Target[] = [
+const RULES: Rule[] = [
     {
         label: "Authentication",
         route: "/api/v1/login",

@@ -1,13 +1,64 @@
 import { Proxy } from "./proxy";
-import { Route, Target, Transformer } from "./models";
-import { createHostTransformerTo, requuestIdTransformer } from "./transformers";
+import {
+    Route,
+    CustomRoute,
+    StringRoute,
+    Rule,
+    Transformer,
+    Header,
+    RegExpTarget,
+    Target,
+    TransformerStatus,
+    TransformerExecution,
+    TimeTraceStore,
+} from "./models";
+import { createHostTransformerTo, requestIdTransformer } from "./transformers";
 
+import {
+    uuid,
+    writeResponse,
+    getOrCreateTrace,
+    firstDefined,
+    equalsIgnoreCase,
+    isEmpty,
+    isNullOrWhiteSpace,
+    headerExistsWithValue,
+    headerExists,
+    getHeader,
+    removeHeader,
+    replaceHeader,
+    findRule,
+    buildServerOptions,
+} from "./utils";
 
 export {
     Proxy,
-    createHostTransformerTo,
-    requuestIdTransformer,
+    // Models
     Route,
+    CustomRoute,
+    StringRoute,
+    RegExpTarget,
     Target,
+    Rule,
+    TransformerStatus,
+    TransformerExecution,
     Transformer,
-}
+    TimeTraceStore,
+    Header,
+    // Transformer
+    requestIdTransformer,
+    createHostTransformerTo,
+    // Utils
+    uuid,
+    writeResponse,
+    getOrCreateTrace,
+    firstDefined,
+    equalsIgnoreCase,
+    isEmpty,
+    isNullOrWhiteSpace,
+    headerExistsWithValue,
+    headerExists,
+    getHeader,
+    removeHeader,
+    replaceHeader,
+};

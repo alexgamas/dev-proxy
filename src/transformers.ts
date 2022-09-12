@@ -1,17 +1,22 @@
 import { ServerOptions } from "http-proxy";
 import { IncomingMessage, ServerResponse } from "http";
-import { uuid } from "./utils";
+import { replaceHeader, uuid } from "./utils";
+import { HOST_HEADER_NAME, REQUEST_ID_HEADER } from "./constants";
 
-
-export const createHostTransformerTo = (host: string) => 
-    (req: IncomingMessage, res: ServerResponse, options?: ServerOptions): Promise<boolean> => 
+export const createHostTransformerTo =
+    (host: string) =>
+    (req: IncomingMessage, res: ServerResponse, options?: ServerOptions): Promise<boolean> =>
         new Promise((resolve, reject) => {
-            req.headers["host"] = host;
+            replaceHeader(req, HOST_HEADER_NAME, host);
             resolve(true);
         });
 
-export const requuestIdTransformer = (req: IncomingMessage, res: ServerResponse, options?: ServerOptions): Promise<boolean> => 
+export const requestIdTransformer = (
+    req: IncomingMessage,
+    res: ServerResponse,
+    options?: ServerOptions
+): Promise<boolean> =>
     new Promise((resolve, reject) => {
-        req.headers["x-request-id"] = uuid();
+        replaceHeader(req, REQUEST_ID_HEADER, uuid());
         resolve(true);
     });
