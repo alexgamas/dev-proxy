@@ -1,6 +1,6 @@
 {
     "name": "@gamas/dev-proxy",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "main": "lib/index.js",
     "license": "MIT",
     "repository": {
@@ -11,8 +11,7 @@
         "lib"
     ],
     "scripts": {
-        "build": "tsc",
-        "dev": "ts-node-dev --inspect --transpile-only --ignore-watch node_modules src/test/app.ts"
+        "build": "tsc"
     },
     "dependencies": {
         "http-proxy": "^1.18.1",
