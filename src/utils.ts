@@ -50,17 +50,6 @@ export const getHeader = (req: IncomingMessage, headerName: string): Header => {
 export const removeHeader = (req: IncomingMessage, headerName: string) => replaceHeader(req, headerName, undefined);
 
 export const replaceHeader = (req: IncomingMessage, headerName: string, headerValue: Header) => {
-    // TODO: move to utils:replaceHeader
-    // req.headers = Object.keys(req.headers).reduce((prev, curr) => {
-
-    //     if ('host' === curr?.toLowerCase()) {
-    //         return { ...prev };
-    //     } else {
-    //         return { ...prev, [curr]: req.headers[curr] };
-    //     }
-
-    // }, { ['host']: targetUrl.host });
-    //
     let initialvalue: any = {};
 
     if (!isNullOrWhiteSpace(headerValue)) {
@@ -68,7 +57,6 @@ export const replaceHeader = (req: IncomingMessage, headerName: string, headerVa
     }
 
     req.headers = Object.keys(req.headers)
-        // .filter((h: string) => h && !equalsIgnoreCase(h, headerName))
         .reduce((prev, curr) => {
             if (equalsIgnoreCase(curr, headerName)) {
                 return { ...prev };
@@ -107,12 +95,6 @@ export const findRule = (req: IncomingMessage, rules: Rule[]): Rule | undefined 
 
     return undefined;
 
-    // let rule = rules.find((t) => {
-    //     if (t.route instanceof RegExp) {
-    //         return t.route.test(url);
-    //     }
-    //     return url?.toLowerCase()?.startsWith(t.route);
-    // });
 };
 
 export const buildServerOptions = (req: IncomingMessage, rule: Rule): ServerOptions => {

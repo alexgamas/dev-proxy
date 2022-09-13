@@ -1,13 +1,15 @@
 import { TimeTraceStore } from "./models";
 
 export class SimpleStore implements TimeTraceStore {
+
     private traceMap: { [name: string]: number } = {};
 
-    save(id: string, timestamp: number) {
+    async save(id: string, timestamp: number): Promise<void>{
         this.traceMap[id] = timestamp;
+        return Promise.resolve();
     }
 
-    get(id: string) {
-        return this.traceMap[id];
+    async get(id: string):Promise<number> {
+        return Promise.resolve(this.traceMap[id]);
     }
 }

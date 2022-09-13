@@ -45,6 +45,11 @@ export type TransformerExecution = {
 };
 
 export interface TimeTraceStore {
-    save: (id: string, date: number) => void;
-    get: (id: string) => number;
+    save: (id: string, timestamp: number) => Promise<void>;
+    get: (id: string) => Promise<number>;
+}
+
+export enum ExecutionStatus {
+    TransformerDone,
+    ProcessDone,
 }

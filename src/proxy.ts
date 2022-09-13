@@ -1,33 +1,13 @@
 import httpProxy, { ProxyTargetUrl, ServerOptions } from "http-proxy";
 import http, { IncomingMessage, ServerResponse } from "http";
 import { Socket } from "net";
-import { Rule, TimeTraceStore, TransformerStatus } from "./models";
+import { ExecutionStatus, Rule, TimeTraceStore, TransformerStatus } from "./models";
 import { Transformer, TransformerExecution } from "./models";
 import { logger } from "./logger";
 import { EventEmitter } from "node:events";
-import { buildServerOptions, findRule, getOrCreateTrace, isEmpty, replaceHeader, uuid, writeResponse } from "./utils";
-import { HOST_HEADER_NAME, PROXY_REQUEST_ID_HEADER } from "./constants";
+import { buildServerOptions, findRule, getOrCreateTrace, isEmpty, replaceHeader, writeResponse } from "./utils";
+import { HOST_HEADER_NAME } from "./constants";
 import { SimpleStore } from "./trace.store";
-
-
-// const applyTransformers = (
-//     req: IncomingMessage, res: ServerResponse,
-//     options?: ServerOptions, transformers?: Transformer[]
-// ): Promise<boolean> => {
-//     return new Promise<boolean>((resolve, reject) => {
-//         if (!transformers || transformers.length == 0) {
-//             resolve(true);
-//         } else {
-//             const transformersExecution = transformers.map((t) => t(req, res, options));
-//             Promise.allSettled<boolean>(transformersExecution).then((tx) => resolve(tx.every((t) => t)));
-//         }
-//     });
-// };
-
-enum ExecutionStatus {
-    TransformerDone,
-    ProcessDone,
-}
 
 const applyTransformersSerial = (
     req: IncomingMessage,
@@ -58,21 +38,18 @@ const applyTransformersSerial = (
     });
 };
 
-
 const applyTransformers = (
     req: IncomingMessage,
     res: ServerResponse,
     options?: ServerOptions,
     transformers?: Transformer[]
 ): Promise<TransformerExecution[]> => {
-
     let execution: TransformerExecution[] = [];
 
     return new Promise<TransformerExecution[]>((resolve, reject) => {
         if (!transformers || transformers.length == 0) {
             resolve(execution);
         } else {
-
             applyTransformersSerial(req, res, options, transformers, (status, te) => {
                 switch (status) {
                     case ExecutionStatus.ProcessDone:
@@ -101,7 +78,7 @@ export class ProxyBuilder {
 
     private ruleProvider?: () => Rule[];
 
-    private store?: TimeTraceStore
+    private store?: TimeTraceStore;
 
     constructor(port: number) {
         this.port = port;
@@ -128,7 +105,7 @@ export class ProxyBuilder {
         if (!this.ruleProvider) {
             throw new Error("Neither routes array nor routeProvider was defined");
         }
-        
+
         if (this.store) {
             proxy.setStore(this.store);
         } else {
@@ -147,14 +124,14 @@ export class Proxy extends ProxyEvent {
 
     private store?: TimeTraceStore;
 
-    private checkTime = (traceId: string | undefined) => {
-        if (traceId && this.store) {
-            const ts = this.store.get(traceId);
+    private checkTime = async (traceId: string): Promise<number | undefined> => {
+        if (this.store) {
+            const ts = await this.store.get(traceId);
             const now = new Date().getTime();
             if (ts) {
                 return now - ts;
             } else {
-                this.store.save(traceId, now);
+                await this.store.save(traceId, now);
             }
         }
     };
@@ -180,7 +157,7 @@ export class Proxy extends ProxyEvent {
         this.port = port;
     }
 
-    private hndlRequest(
+    private async hndlRequest(
         proxyReq: http.ClientRequest,
         req: IncomingMessage,
         res: ServerResponse,
@@ -189,7 +166,7 @@ export class Proxy extends ProxyEvent {
         // Add request id - for trace purposes
         const traceId = getOrCreateTrace(req);
 
-        this.checkTime(traceId);
+        await this.checkTime(traceId);
 
         const request = {
             action: "request",
@@ -206,15 +183,16 @@ export class Proxy extends ProxyEvent {
         this.sendEvent(Proxy.EVENT_PROXY_REQUEST, request);
     }
 
-    private hndlResponse(proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
+    private async hndlResponse(proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
         const traceId = getOrCreateTrace(req);
+        const time = await this.checkTime(traceId);
 
         const response = {
             action: "response",
             method: req.method,
             traceId: traceId,
             url: req.url,
-            time: this.checkTime(traceId?.toString()),
+            time: time,
             status: {
                 code: proxyRes.statusCode,
                 message: proxyRes.statusMessage,
@@ -237,7 +215,7 @@ export class Proxy extends ProxyEvent {
         });
     }
 
-    private hndlError(err: Error, req: IncomingMessage, res: ServerResponse | Socket, target?: ProxyTargetUrl) {
+    private async hndlError(err: Error, req: IncomingMessage, res: ServerResponse | Socket, target?: ProxyTargetUrl) {
         const traceId = getOrCreateTrace(req);
 
         const payload = {
@@ -249,7 +227,7 @@ export class Proxy extends ProxyEvent {
             error: err,
             target: target,
             url: req.url,
-            time: this.checkTime(traceId?.toString()),
+            time: await this.checkTime(traceId?.toString())
         };
 
         logger.error(payload);
@@ -271,7 +249,7 @@ export class Proxy extends ProxyEvent {
         proxy.on("proxyReq", this.hndlRequest.bind(this));
         proxy.on("proxyRes", this.hndlResponse.bind(this));
 
-        http.createServer((req, res) => {
+        http.createServer(async (req, res) => {
             const rules = this.ruleProvider!();
             let rule = findRule(req, rules);
             const url = req.url!;
@@ -308,18 +286,20 @@ export class Proxy extends ProxyEvent {
                 replaceHeader(req, HOST_HEADER_NAME, targetUrl.host);
             }
 
-            applyTransformers(req, res, serverOptions, rule.transformers).then((resp) => {
-                if (isEmpty(resp)) {
-                    const traceId = getOrCreateTrace(req);
-                    this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
-                        traceId: traceId,
-                        trace: resp
-                    });
-                }
-                proxy.web(req, res, { ...serverOptions }, this.hndlError.bind(this));
-            }).catch((err) => {
-                logger.error(err);
-            });
+            applyTransformers(req, res, serverOptions, rule.transformers)
+                .then((resp) => {
+                    if (isEmpty(resp)) {
+                        const traceId = getOrCreateTrace(req);
+                        this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
+                            traceId: traceId,
+                            trace: resp,
+                        });
+                    }
+                    proxy.web(req, res, { ...serverOptions }, this.hndlError.bind(this));
+                })
+                .catch((err) => {
+                    logger.error(err);
+                });
         }).listen(this.port);
 
         const startEvent = { resource: "proxy", status: "listening", port: this.port };
