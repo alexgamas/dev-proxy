@@ -8,6 +8,7 @@ import { EventEmitter } from "node:events";
 import { buildServerOptions, findRule, getOrCreateTrace, isEmpty, replaceHeader, writeResponse } from "./utils";
 import { HOST_HEADER_NAME } from "./constants";
 import { SimpleStore } from "./trace.store";
+import Server from "http-proxy";
 
 const applyTransformersSerial = (
     req: IncomingMessage,
@@ -95,7 +96,7 @@ export class ProxyBuilder {
     }
 
     useRules(rules: Rule[]): ProxyBuilder {
-        this.ruleProvider = () => Promise.resolve(rules) ;
+        this.ruleProvider = () => Promise.resolve(rules);
         return this;
     }
 
@@ -106,13 +107,13 @@ export class ProxyBuilder {
             throw new Error("Neither routes array nor routeProvider was defined");
         }
 
+        proxy.setRuleProvider(this.ruleProvider);
+
         if (this.store) {
             proxy.setStore(this.store);
         } else {
             proxy.setStore(new SimpleStore());
         }
-
-        proxy.setRuleProvider(this.ruleProvider);
 
         return proxy;
     }
@@ -227,7 +228,7 @@ export class Proxy extends ProxyEvent {
             error: err,
             target: target,
             url: req.url,
-            time: await this.checkTime(traceId?.toString())
+            time: await this.checkTime(traceId?.toString()),
         };
 
         logger.error(payload);
@@ -243,15 +244,13 @@ export class Proxy extends ProxyEvent {
         }
     }
 
-    public start() {
-        var proxy = httpProxy.createProxy();
+    private getMainHandler(proxy: Server) {
+        return async (req: IncomingMessage, res: ServerResponse) => {
+            if (!this.ruleProvider) {
+                throw new Error("RuleProvider must be set");
+            }
 
-        proxy.on("proxyReq", this.hndlRequest.bind(this));
-        proxy.on("proxyRes", this.hndlResponse.bind(this));
-
-        http.createServer(async (req, res) => {
-            
-            const rules = await this.ruleProvider!();
+            const rules = await this.ruleProvider();
 
             let rule = findRule(req, rules);
             const url = req.url!;
@@ -302,7 +301,16 @@ export class Proxy extends ProxyEvent {
                 .catch((err) => {
                     logger.error(err);
                 });
-        }).listen(this.port);
+        };
+    }
+
+    public start() {
+        var proxy = httpProxy.createProxy();
+
+        proxy.on("proxyReq", this.hndlRequest.bind(this));
+        proxy.on("proxyRes", this.hndlResponse.bind(this));
+
+        http.createServer(this.getMainHandler(proxy)).listen(this.port);
 
         const startEvent = { resource: "proxy", status: "listening", port: this.port };
         this.sendEvent(Proxy.EVENT_PROXY_STARTED, startEvent);
