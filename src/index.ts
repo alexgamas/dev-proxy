@@ -1,4 +1,4 @@
-import { Proxy } from "./proxy";
+import { Proxy, ProxyEvent } from "./proxy";
 import {
     Route,
     CustomRoute,
@@ -33,6 +33,7 @@ import {
 
 export {
     Proxy,
+    ProxyEvent,
     // Models
     Route,
     CustomRoute,

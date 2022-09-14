@@ -76,7 +76,7 @@ export class ProxyEvent extends EventEmitter {
 export class ProxyBuilder {
     private port: number;
 
-    private ruleProvider?: () => Rule[];
+    private ruleProvider?: () => Promise<Rule[]>;
 
     private store?: TimeTraceStore;
 
@@ -89,13 +89,13 @@ export class ProxyBuilder {
         return this;
     }
 
-    useRuleProvider(rn: () => Rule[]): ProxyBuilder {
+    useRuleProvider(rn: () => Promise<Rule[]>): ProxyBuilder {
         this.ruleProvider = rn;
         return this;
     }
 
     useRules(rules: Rule[]): ProxyBuilder {
-        this.ruleProvider = () => rules;
+        this.ruleProvider = () => Promise.resolve(rules) ;
         return this;
     }
 
@@ -120,7 +120,7 @@ export class ProxyBuilder {
 
 export class Proxy extends ProxyEvent {
     private port: number;
-    private ruleProvider?: () => Rule[];
+    private ruleProvider?: () => Promise<Rule[]>;
 
     private store?: TimeTraceStore;
 
@@ -140,11 +140,11 @@ export class Proxy extends ProxyEvent {
         this.store = store;
     }
 
-    public setRuleProvider(fn: () => Rule[]) {
+    public setRuleProvider(fn: () => Promise<Rule[]>) {
         this.ruleProvider = fn;
     }
 
-    public static createProxy(port: number): ProxyBuilder {
+    public static create(port: number): ProxyBuilder {
         return new ProxyBuilder(port);
     }
 
@@ -250,7 +250,9 @@ export class Proxy extends ProxyEvent {
         proxy.on("proxyRes", this.hndlResponse.bind(this));
 
         http.createServer(async (req, res) => {
-            const rules = this.ruleProvider!();
+            
+            const rules = await this.ruleProvider!();
+
             let rule = findRule(req, rules);
             const url = req.url!;
             // Rule not found
