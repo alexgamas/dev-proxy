@@ -150,7 +150,7 @@ export class Proxy extends ProxyEvent {
     }
 
     private sendEvent(eventName: string, payload: any) {
-        this.emit(eventName, payload);
+        this.emit(eventName, { event: eventName, data: payload });
     }
 
     constructor(port: number) {
@@ -158,7 +158,7 @@ export class Proxy extends ProxyEvent {
         this.port = port;
     }
 
-    private async hndlRequest(
+    private async requestHandler(
         proxyReq: http.ClientRequest,
         req: IncomingMessage,
         res: ServerResponse,
@@ -184,7 +184,7 @@ export class Proxy extends ProxyEvent {
         this.sendEvent(Proxy.EVENT_PROXY_REQUEST, request);
     }
 
-    private async hndlResponse(proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
+    private async responseHandler(proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
         const traceId = getOrCreateTrace(req);
         const time = await this.checkTime(traceId);
 
@@ -216,7 +216,7 @@ export class Proxy extends ProxyEvent {
         });
     }
 
-    private async hndlError(err: Error, req: IncomingMessage, res: ServerResponse | Socket, target?: ProxyTargetUrl) {
+    private async errorHandler(err: Error, req: IncomingMessage, res: ServerResponse | Socket, target?: ProxyTargetUrl) {
         const traceId = getOrCreateTrace(req);
 
         const payload = {
@@ -244,7 +244,7 @@ export class Proxy extends ProxyEvent {
         }
     }
 
-    private getMainHandler(proxy: Server) {
+    private buildMainHandler(proxy: Server) {
         return async (req: IncomingMessage, res: ServerResponse) => {
             if (!this.ruleProvider) {
                 throw new Error("RuleProvider must be set");
@@ -287,30 +287,43 @@ export class Proxy extends ProxyEvent {
                 replaceHeader(req, HOST_HEADER_NAME, targetUrl.host);
             }
 
-            applyTransformers(req, res, serverOptions, rule.transformers)
-                .then((resp) => {
-                    if (isEmpty(resp)) {
-                        const traceId = getOrCreateTrace(req);
-                        this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
-                            traceId: traceId,
-                            trace: resp,
-                        });
-                    }
-                    proxy.web(req, res, { ...serverOptions }, this.hndlError.bind(this));
-                })
-                .catch((err) => {
-                    logger.error(err);
+            const te: TransformerExecution[] =  await applyTransformers(req, res, serverOptions, rule.transformers);
+
+            if (!isEmpty(te)) {
+                const traceId = getOrCreateTrace(req);
+                this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
+                    traceId: traceId,
+                    trace: te,
                 });
+            }
+
+            proxy.web(req, res, { ...serverOptions }, this.errorHandler.bind(this));
+
+            // applyTransformers(req, res, serverOptions, rule.transformers)
+            //     .then((resp) => {
+            //         if (!isEmpty(resp)) {
+            //             const traceId = getOrCreateTrace(req);
+            //             this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
+            //                 traceId: traceId,
+            //                 trace: resp,
+            //             });
+            //         }
+            //         proxy.web(req, res, { ...serverOptions }, this.errorHandler.bind(this));
+            //     })
+            //     .catch((err) => {
+            //         logger.error(err);
+            //     });
         };
     }
 
     public start() {
         var proxy = httpProxy.createProxy();
 
-        proxy.on("proxyReq", this.hndlRequest.bind(this));
-        proxy.on("proxyRes", this.hndlResponse.bind(this));
+        proxy.on("proxyReq", this.requestHandler.bind(this));
+        proxy.on("proxyRes", this.responseHandler.bind(this));
+        const mainHandler = this.buildMainHandler(proxy);
 
-        http.createServer(this.getMainHandler(proxy)).listen(this.port);
+        http.createServer(mainHandler).listen(this.port);
 
         const startEvent = { resource: "proxy", status: "listening", port: this.port };
         this.sendEvent(Proxy.EVENT_PROXY_STARTED, startEvent);
