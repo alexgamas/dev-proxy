@@ -6,6 +6,11 @@ import { ProxyTarget, ServerOptions } from "http-proxy";
 
 export const uuid = () => uuidv4();
 
+
+const decodeB64 = (str: string): string => Buffer.from(str, 'base64').toString('binary');
+const encodeB64 = (str: string): string => Buffer.from(str, 'binary').toString('base64');
+
+
 export const writeResponse = (res: ServerResponse, statsCode: number, payload: any) => {
     res.writeHead(statsCode, APPLICATION_JSON);
     res.write(JSON.stringify(payload));
