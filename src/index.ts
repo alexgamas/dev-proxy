@@ -1,4 +1,5 @@
 import { Proxy, ProxyEvent } from "./proxy";
+
 import {
     Route,
     CustomRoute,
@@ -9,9 +10,10 @@ import {
     RegExpTarget,
     Target,
     TransformerStatus,
-    TransformerExecution,
+    TransformerExecutionTrace,
     TimeTraceStore,
 } from "./models";
+
 import { createHostTransformerTo, requestIdTransformer } from "./transformers";
 
 import {
@@ -42,7 +44,7 @@ export {
     Target,
     Rule,
     TransformerStatus,
-    TransformerExecution,
+    TransformerExecutionTrace,
     Transformer,
     TimeTraceStore,
     Header,
