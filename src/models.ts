@@ -37,7 +37,8 @@ export enum TransformerStatus {
     Success = 1,
 }
 
-export type TransformerExecution = {
+export type TransformerExecutionTrace = {
+    order: number,
     start: Date;
     end: Date;
     duration: number;
@@ -49,7 +50,7 @@ export interface TimeTraceStore {
     get: (id: string) => Promise<number>;
 }
 
-export enum ExecutionStatus {
-    TransformerDone,
-    ProcessDone,
-}
+// export enum ExecutionStatus {
+//     TransformerDone,
+//     ProcessDone,
+// }

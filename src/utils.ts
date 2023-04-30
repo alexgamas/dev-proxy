@@ -1,14 +1,23 @@
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { Rule, StringRoute, Route, Header, Target } from "./models";
 import { IncomingMessage, ServerResponse } from "http";
 import { APPLICATION_JSON, DEFAULT_SERVER_OPTIONS, PROXY_REQUEST_ID_HEADER } from "./constants";
 import { ProxyTarget, ServerOptions } from "http-proxy";
+import { logger } from "./logger";
 
 export const uuid = () => uuidv4();
 
+export const decodeB64 = (str: string): string => Buffer.from(str, 'base64').toString('binary');
+export const encodeB64 = (str: string): string => Buffer.from(str, 'binary').toString('base64');
 
-const decodeB64 = (str: string): string => Buffer.from(str, 'base64').toString('binary');
-const encodeB64 = (str: string): string => Buffer.from(str, 'binary').toString('base64');
+export const tryBuildURL = (url: string): URL | undefined => {
+    try {
+        return new URL(url);
+    } catch(e) {
+        logger.error(e);
+        return undefined;        
+    }
+}
 
 
 export const writeResponse = (res: ServerResponse, statsCode: number, payload: any) => {
@@ -52,7 +61,15 @@ export const getHeader = (req: IncomingMessage, headerName: string): Header => {
     return undefined;
 };
 
-export const removeHeader = (req: IncomingMessage, headerName: string) => replaceHeader(req, headerName, undefined);
+export const removeHeader = (req: IncomingMessage, headerName: string) => {
+    req.headers = Object.keys(req.headers).reduce((prev, curr) => {
+        if (equalsIgnoreCase(curr, headerName)) {
+            return { ...prev };
+        } else {
+            return { ...prev, [curr]: req.headers[curr] };
+        }
+    }, {});
+};
 
 export const replaceHeader = (req: IncomingMessage, headerName: string, headerValue: Header) => {
     let initialvalue: any = {};
@@ -61,14 +78,13 @@ export const replaceHeader = (req: IncomingMessage, headerName: string, headerVa
         initialvalue[headerName] = headerValue;
     }
 
-    req.headers = Object.keys(req.headers)
-        .reduce((prev, curr) => {
-            if (equalsIgnoreCase(curr, headerName)) {
-                return { ...prev };
-            } else {
-                return { ...prev, [curr]: req.headers[curr] };
-            }
-        }, initialvalue);
+    req.headers = Object.keys(req.headers).reduce((prev, curr) => {
+        if (equalsIgnoreCase(curr, headerName)) {
+            return { ...prev };
+        } else {
+            return { ...prev, [curr]: req.headers[curr] };
+        }
+    }, initialvalue);
 };
 
 export const findRule = (req: IncomingMessage, rules: Rule[]): Rule | undefined => {

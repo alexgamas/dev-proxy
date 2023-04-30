@@ -1,68 +1,79 @@
-import httpProxy, { ProxyTargetUrl, ServerOptions } from "http-proxy";
 import http, { IncomingMessage, ServerResponse } from "http";
+import { ProxyTargetUrl, default as Server, ServerOptions, default as httpProxy } from "http-proxy";
 import { Socket } from "net";
-import { ExecutionStatus, Rule, TimeTraceStore, TransformerStatus } from "./models";
-import { Transformer, TransformerExecution } from "./models";
-import { logger } from "./logger";
 import { EventEmitter } from "node:events";
-import { buildServerOptions, findRule, getOrCreateTrace, isEmpty, replaceHeader, writeResponse } from "./utils";
 import { HOST_HEADER_NAME } from "./constants";
+import { logger } from "./logger";
+import { Rule, TimeTraceStore, Transformer, TransformerExecutionTrace, TransformerStatus } from "./models";
 import { SimpleStore } from "./trace.store";
-import Server from "http-proxy";
+import { buildServerOptions, findRule, getOrCreateTrace, isEmpty, replaceHeader, tryBuildURL, writeResponse } from "./utils";
 
-const applyTransformersSerial = (
-    req: IncomingMessage,
-    res: ServerResponse,
-    options: ServerOptions | undefined,
-    transformers: Transformer[],
-    onStatus: (status: ExecutionStatus, te?: TransformerExecution) => void
-) => {
-    let transformer = transformers.shift();
+// const applyTransformersSerial = (
+//     req: IncomingMessage,
+//     res: ServerResponse,
+//     options: ServerOptions | undefined,
+//     transformers: Transformer[],
+//     onStatus: (status: ExecutionStatus, te?: TransformerExecutionTrace) => void
+// ) => {
+//     let transformer = transformers.shift();
 
-    if (!transformer) {
-        onStatus(ExecutionStatus.ProcessDone);
-        // end of recursion
-        return;
+//     if (!transformer) {
+//         onStatus(ExecutionStatus.ProcessDone);
+//         // end of recursion
+//         return;
+//     }
+
+//     const startExecution = new Date();
+
+//     transformer(req, res, options).then((status) => {
+//         const endExecution = new Date();
+//         onStatus(ExecutionStatus.TransformerDone, {
+//             start: startExecution,
+//             end: endExecution,
+//             duration: endExecution.getTime() - startExecution.getTime(),
+//             status: status ? TransformerStatus.Success : TransformerStatus.Fail,
+//         });
+//         applyTransformersSerial(req, res, options, transformers, onStatus);
+//     });
+// };
+
+
+const applyTransformers = async (req: IncomingMessage, res: ServerResponse, options?: ServerOptions, transformers?: Transformer[]): Promise<TransformerExecutionTrace[]> => {
+
+    if (!transformers || transformers.length == 0) {
+        return Promise.resolve([]);
     }
 
-    const startExecution = new Date();
+    let execution: TransformerExecutionTrace[] = [];
 
-    transformer(req, res, options).then((status) => {
+    let order = 0;
+    for (let transformer of transformers) {
+
+        const startExecution = new Date();
+        let status: TransformerStatus;
+
+        try {
+            const transformerResult = await transformer(req, res, options);
+            status = transformerResult ? TransformerStatus.Success : TransformerStatus.Fail;
+        } catch (error) {
+            status = TransformerStatus.Fail;
+        }
+
         const endExecution = new Date();
-        onStatus(ExecutionStatus.TransformerDone, {
+
+        execution.push({
+            order: order,
             start: startExecution,
             end: endExecution,
             duration: endExecution.getTime() - startExecution.getTime(),
-            status: status ? TransformerStatus.Success : TransformerStatus.Fail,
+            status: status
         });
-        applyTransformersSerial(req, res, options, transformers, onStatus);
-    });
-};
 
-const applyTransformers = (
-    req: IncomingMessage,
-    res: ServerResponse,
-    options?: ServerOptions,
-    transformers?: Transformer[]
-): Promise<TransformerExecution[]> => {
-    let execution: TransformerExecution[] = [];
+        order++;
+    }
 
-    return new Promise<TransformerExecution[]>((resolve, reject) => {
-        if (!transformers || transformers.length == 0) {
-            resolve(execution);
-        } else {
-            applyTransformersSerial(req, res, options, transformers, (status, te) => {
-                switch (status) {
-                    case ExecutionStatus.ProcessDone:
-                        resolve(execution);
-                        break;
-                    case ExecutionStatus.TransformerDone:
-                        execution.push(te!);
-                        break;
-                }
-            });
-        }
-    });
+    return Promise.resolve(execution);
+
 };
 
 export class ProxyEvent extends EventEmitter {
@@ -280,14 +291,15 @@ export class Proxy extends ProxyEvent {
 
             let serverOptions = buildServerOptions(req, rule);
 
-            // options = { ...options };
-
             if (rule?.replaceHostHeader) {
-                const targetUrl: URL = new URL(`${serverOptions!.target}`);
-                replaceHeader(req, HOST_HEADER_NAME, targetUrl.host);
+                const targetUrl = tryBuildURL(`${serverOptions!.target}`);
+                if (targetUrl) {
+                    replaceHeader(req, HOST_HEADER_NAME, targetUrl.host);
+                }
+                logger.warn('Host header not replaced, Invalid URL');
             }
 
-            const te: TransformerExecution[] =  await applyTransformers(req, res, serverOptions, rule.transformers);
+            const te: TransformerExecutionTrace[] =  await applyTransformers(req, res, serverOptions, rule.transformers);
 
             if (!isEmpty(te)) {
                 const traceId = getOrCreateTrace(req);
@@ -299,20 +311,6 @@ export class Proxy extends ProxyEvent {
 
             proxy.web(req, res, { ...serverOptions }, this.errorHandler.bind(this));
 
-            // applyTransformers(req, res, serverOptions, rule.transformers)
-            //     .then((resp) => {
-            //         if (!isEmpty(resp)) {
-            //             const traceId = getOrCreateTrace(req);
-            //             this.sendEvent(ProxyEvent.EVENT_PROXY_TRANSFORMER, {
-            //                 traceId: traceId,
-            //                 trace: resp,
-            //             });
-            //         }
-            //         proxy.web(req, res, { ...serverOptions }, this.errorHandler.bind(this));
-            //     })
-            //     .catch((err) => {
-            //         logger.error(err);
-            //     });
         };
     }
 
